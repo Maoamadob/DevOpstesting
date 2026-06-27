@@ -16,6 +16,7 @@ spec:
       containers:
         - name: api
           image: maoamadob/devops-api:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5000
           env:

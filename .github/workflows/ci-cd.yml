@@ -1,0 +1,129 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: devops-test-eks
+  K8S_NAMESPACE: devops-test
+  DOCKER_API_IMAGE: maoamadob/devops-api
+  DOCKER_FRONTEND_IMAGE: maoamadob/devops-frontend
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Run API tests
+        working-directory: app/api
+        run: pytest test_app.py -v
+
+  build-and-push:
+    name: Build & Push Docker Images
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v5
+        with:
+          context: app/api
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKER_API_IMAGE }}:latest
+            ${{ env.DOCKER_API_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: app/frontend
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKER_FRONTEND_IMAGE }}:latest
+            ${{ env.DOCKER_FRONTEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to EKS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -f k8s/
+
+      - name: Rollout restart deployments
+        run: |
+          kubectl rollout restart deployment/api -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout restart deployment/frontend -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/api -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+          kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [test, build-and-push, deploy]
+    if: always() && (needs.test.result == 'failure' || needs.build-and-push.result == 'failure' || needs.deploy.result == 'failure')
+    steps:
+      - name: Pipeline failed
+        run: |
+          echo "::error::CI/CD pipeline failed. Check the logs of the failed job."
+          echo "Failed workflow: ${{ github.workflow }}"
+          echo "Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
