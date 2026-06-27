@@ -108,8 +108,8 @@ jobs:
         run: |
           kubectl rollout restart deployment/api -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout restart deployment/frontend -n ${{ env.K8S_NAMESPACE }}
-          kubectl rollout status deployment/api -n ${{ env.K8S_NAMESPACE }} --timeout=120s
-          kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+          kubectl rollout status deployment/api -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s
 
       - name: Verify deployment
         run: |
