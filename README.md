@@ -203,17 +203,6 @@ Respuesta esperada de la API en `/api/info`:
 | 12 | Documentación | Este README |
 | 13 | App en la nube accesible | ALB URL (ver arriba) |
 
-### Temas documentados en PowerPoint (teórico)
-
-- Alta disponibilidad multi-AZ
-- Actualización OS sin downtime (rolling updates)
-- Diagnóstico de latencia multi-región
-- Entorno mixto Linux/Windows
-- Virtualización VMware/Hyper-V
-- Incidentes 24/7 y postmortem ITIL
-- Backups y disaster recovery
-- Monitoreo (Prometheus/Grafana)
-- ArgoCD / GitOps (mejora futura)
 
 ---
 
