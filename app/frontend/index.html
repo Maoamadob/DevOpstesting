@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>DevOps Technical Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; }
+    h1 { color: #232f3e; }
+    .status { background: #f0f0f0; padding: 15px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Platform & DevOps Engineer</h1>
+  <p>Prueba Técnica — Infraestructura desplegada en AWS EKS</p>
+  <div class="status" id="status">Conectando con API...</div>
+  <script>
+    fetch('/api/info')
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('status').innerHTML =
+          '<strong>API Response:</strong><br>' + JSON.stringify(d, null, 2);
+      })
+      .catch(e => {
+        document.getElementById('status').textContent = 'Error: ' + e;
+      });
+  </script>
+</body>
+</html>

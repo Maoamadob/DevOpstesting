@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: devops-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: maoamadob/devops-api:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: ENV
+              value: "dev"
+            - name: DB_HOST
+              value: "devops-test-postgres.c2zi44qg4uyo.us-east-1.rds.amazonaws.com"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
