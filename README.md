@@ -15,19 +15,16 @@ Prueba técnica de arquitectura cloud en AWS con microservicios contenedorizados
 
 ## Arquitectura
 
+![Diagrama de arquitectura AWS — CI/CD, EKS, ALB, RDS y monitoreo](docs/architecture.png)
+
+> Exporta tu diagrama desde Eraser como PNG y guárdalo en `docs/architecture.png` antes del push a GitHub.
+
+La solución despliega microservicios contenedorizados en **Amazon EKS** dentro de una **VPC** segmentada, expuestos mediante **ALB**, con base de datos **RDS PostgreSQL** en subnet privada, aprovisionamiento **Terraform**, pipeline **GitHub Actions** y capa de **monitoreo Prometheus/Grafana**.
+
+### Flujo de tráfico
+
 ```
-Internet
-    │
-    ▼
-Application Load Balancer (subnets públicas)
-    │
-    ▼
-EKS Cluster — namespace devops-test (subnets privadas)
-    ├── frontend (nginx) — NodePort 30080
-    └── api (Flask) — ClusterIP 5000
-            │
-            ▼
-RDS PostgreSQL 15 (subnet privada)
+Internet Users → ALB :80 → EKS NodePort 30080 → frontend (nginx) → api (Flask) :5000 → RDS :5432
 ```
 
 ### Componentes AWS
@@ -46,11 +43,40 @@ RDS PostgreSQL 15 (subnet privada)
 ### Flujo CI/CD
 
 ```
-Git Push (main) → GitHub Actions
-    → pytest (CI)
-    → Docker build linux/amd64 + push Docker Hub
-    → kubectl apply + rollout restart (CD)
-    → EKS
+Developer → Git Push → GitHub Actions
+    → Tests (pytest)
+    → Build & Push (Docker linux/amd64 → Docker Hub)
+    → Deploy to EKS (kubectl apply + rollout restart)
+    → Notify on Failure
+```
+
+### Capa de monitoreo (Prometheus + Grafana)
+
+| Componente | Función |
+|------------|---------|
+| **Prometheus** | Recolección y almacenamiento de métricas |
+| **Grafana** | Dashboards y visualización |
+| **kube-state-metrics** | Métricas del estado de objetos Kubernetes |
+| **node-exporter** | Métricas de CPU, memoria y disco del nodo EC2 |
+| **ServiceMonitor** | Scraping de `/metrics` en la API Flask |
+| **Metrics Server** | Métricas de recursos para HPA |
+| **HPA** | Autoescalado horizontal de pods por CPU |
+
+**Métricas expuestas por la API (Flask + prometheus-client):**
+
+- `http_requests_total` — volumen de requests por endpoint
+- `http_request_duration_seconds` — latencia por ruta
+
+**Métricas clave monitoreadas:**
+
+- Disponibilidad: uptime, error rate (5xx), health checks ALB/pods
+- Rendimiento: latencia p95, throughput (req/s)
+- Infraestructura: CPU/memoria nodos y pods, restarts
+
+```
+App /metrics → Prometheus → Grafana dashboards
+Kubernetes metrics → Prometheus → Alertas (prod)
+HPA ← Metrics Server ← CPU pods
 ```
 
 ---
@@ -61,9 +87,14 @@ Git Push (main) → GitHub Actions
 .
 ├── .github/workflows/ci-cd.yml   # Pipeline CI/CD
 ├── app/
-│   ├── api/                      # Microservicio API (Flask)
+│   ├── api/                      # Microservicio API (Flask + /metrics)
 │   └── frontend/                 # Microservicio frontend (nginx)
-├── k8s/                          # Manifiestos Kubernetes
+├── docs/
+│   └── architecture.png          # Diagrama de arquitectura (Eraser)
+├── k8s/                          # Manifiestos Kubernetes + HPA
+├── monitoring/
+│   ├── prometheus-values.yaml    # Helm values Prometheus/Grafana
+│   └── servicemonitor-api.yaml   # Scraping métricas API
 ├── terraform/                    # Infraestructura como código
 │   ├── vpc.tf
 │   ├── eks.tf
@@ -160,6 +191,51 @@ Push a la rama `main` dispara el pipeline en GitHub Actions.
 
 ---
 
+## Monitoreo (Prometheus + Grafana)
+
+### Encender monitoreo
+
+```bash
+# Metrics Server (requerido para HPA)
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl patch deployment metrics-server -n kube-system --type='json' \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+
+# Si el nodo está lleno de pods, liberar un slot temporalmente
+kubectl scale deployment coredns -n kube-system --replicas=1
+
+# Instalar stack
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  -n monitoring -f monitoring/prometheus-values.yaml
+
+kubectl apply -f monitoring/servicemonitor-api.yaml
+kubectl apply -f k8s/hpa-api.yaml
+kubectl apply -f k8s/hpa-frontend.yaml
+```
+
+### Acceder a Grafana
+
+```bash
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+```
+
+- URL: http://localhost:3000
+- Usuario: `admin`
+- Contraseña: `devops-test`
+
+### Apagar monitoreo (ahorrar recursos)
+
+```bash
+helm uninstall prometheus -n monitoring
+kubectl delete namespace monitoring
+kubectl scale deployment coredns -n kube-system --replicas=2
+```
+
+---
+
 ## Verificación
 
 ```bash
@@ -171,6 +247,12 @@ kubectl get pods -n devops-test
 
 # Servicios
 kubectl get svc -n devops-test
+
+# HPA
+kubectl get hpa -n devops-test
+
+# Métricas de pods
+kubectl top pods -n devops-test
 
 # App en el navegador
 open http://devops-test-alb-44473737.us-east-1.elb.amazonaws.com
@@ -199,6 +281,7 @@ Respuesta esperada de la API en `/api/info`:
 | 5 | RDS + IAM + auditoría | `terraform/rds.tf`, `terraform/iam.tf` (CloudTrail) |
 | 7 | Microservicios Docker + K8s | `app/`, `k8s/` |
 | 9 | Infrastructure as Code | `terraform/` |
+| 10 | Monitoreo y autoescalado | `monitoring/`, Prometheus/Grafana, HPA, `/metrics` |
 | 11 | CI/CD pipeline | `.github/workflows/ci-cd.yml` |
 | 12 | Documentación | Este README |
 | 13 | App en la nube accesible | ALB URL (ver arriba) |
@@ -216,6 +299,8 @@ Respuesta esperada de la API en `/api/info`:
 | **Docker Hub** | Simplicidad; en prod se usaría Amazon ECR |
 | **Push-based deploy** | GitHub Actions + kubectl; en prod migrar a ArgoCD (GitOps) |
 | **backup_retention_period = 1** | Límite de Free Tier en RDS |
+| **Prometheus on-demand** | Stack pesado; se apaga con `helm uninstall` fuera de demos |
+| **maxSurge: 0 en Deployments** | Rollout en nodo único sin pods Pending extra |
 
 ---
 
@@ -226,6 +311,8 @@ Respuesta esperada de la API en `/api/info`:
 ```bash
 # 1. Eliminar recursos Kubernetes
 kubectl delete namespace devops-test
+helm uninstall prometheus -n monitoring 2>/dev/null || true
+kubectl delete namespace monitoring 2>/dev/null || true
 
 # 2. Destruir infraestructura AWS
 cd terraform
