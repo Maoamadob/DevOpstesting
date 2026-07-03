@@ -6,7 +6,7 @@ Prueba técnica de arquitectura cloud en AWS con microservicios contenedorizados
 
 | Recurso | URL |
 |---------|-----|
-| **Aplicación (ALB)** | http://devops-test-alb-44473737.us-east-1.elb.amazonaws.com |
+| **Aplicación (ALB)** | http://devops-test-alb-1797201729.us-east-1.elb.amazonaws.com |
 | **Repositorio** | https://github.com/Maoamadob/DevOpstesting |
 | **Docker Hub — API** | https://hub.docker.com/r/maoamadob/devops-api |
 | **Docker Hub — Frontend** | https://hub.docker.com/r/maoamadob/devops-frontend |
@@ -255,7 +255,7 @@ kubectl get hpa -n devops-test
 kubectl top pods -n devops-test
 
 # App en el navegador
-open http://devops-test-alb-44473737.us-east-1.elb.amazonaws.com
+open http://devops-test-alb-1797201729.us-east-1.elb.amazonaws.com
 ```
 
 Respuesta esperada de la API en `/api/info`:
