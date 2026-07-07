@@ -6,7 +6,7 @@ Prueba técnica de arquitectura cloud en AWS con microservicios contenedorizados
 
 | Recurso | URL |
 |---------|-----|
-| **Aplicación (ALB)** | http://devops-test-alb-1400167831.us-east-1.elb.amazonaws.com |
+| **Aplicación (ALB)** | http://devops-test-alb-1147455511.us-east-1.elb.amazonaws.com/ |
 | **Repositorio** | https://github.com/Maoamadob/DevOpstesting |
 | **Docker Hub — API** | https://hub.docker.com/r/maoamadob/devops-api |
 | **Docker Hub — Frontend** | https://hub.docker.com/r/maoamadob/devops-frontend |
