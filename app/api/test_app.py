@@ -17,3 +17,12 @@ def test_info_endpoint():
     assert response.status_code == 200
     assert response.json["service"] == "api"
     assert "message" in response.json
+
+
+def test_unknown_route_returns_json_404():
+    client = app.test_client()
+    response = client.get("/does-not-exist")
+
+    assert response.status_code == 404
+    assert response.content_type.startswith("application/json")
+    assert response.json["error"] == "not found"
