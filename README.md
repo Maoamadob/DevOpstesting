@@ -67,6 +67,7 @@ Developer → Git Push → GitHub Actions
 
 - `http_requests_total` — volumen de requests por endpoint y status (2xx, 4xx)
 - `http_request_duration_seconds` — latencia por ruta
+- `api_errors_total` — conteo de errores internos del servidor (5xx) con ID de rastreo
 
 **Métricas clave monitoreadas:**
 
@@ -109,7 +110,7 @@ HPA ← Metrics Server ← CPU pods
 │   ├── security_groups.tf
 │   ├── iam.tf
 │   ├── variables.tf
-│   └── outputs.tf
+│   └── output.tf
 └── README.md
 ```
 
