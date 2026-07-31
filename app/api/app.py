@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 
 from flask import Flask, Response, jsonify, request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -11,6 +12,9 @@ REQUEST_COUNT = Counter(
 )
 REQUEST_LATENCY = Histogram(
     "http_request_duration_seconds", "HTTP request latency", ["endpoint"]
+)
+ERROR_ALERT = Counter(
+    "api_errors_total", "Total API errors", ["error_type"]
 )
 
 
@@ -54,6 +58,17 @@ def info():
 @app.errorhandler(404)
 def not_found(error):
     return jsonify(error="not found", path=request.path), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    error_id = str(uuid.uuid4())
+    ERROR_ALERT.labels(error_type="internal_server_error").inc()
+    return jsonify(
+        error="internal server error",
+        error_id=error_id,
+        message="An unexpected error occurred. Please reference error_id in support requests."
+    ), 500
 
 
 if __name__ == "__main__":
