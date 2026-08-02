@@ -30,12 +30,14 @@ pytest test_app.py -v -k test_health_endpoint   # single test
 docker build --platform linux/amd64 -t maoamadob/devops-api:latest app/api
 
 # Terraform
-cd terraform && terraform init && terraform plan && terraform apply
+cd terraform && terraform init && terraform validate && terraform plan && terraform apply
 terraform destroy   # always run after manual testing
 
 # Kubernetes
 aws eks update-kubeconfig --region us-east-1 --name devops-test-eks
-kubectl apply -f k8s/namespace.yaml && kubectl apply -f k8s/
+kubectl apply -f k8s/namespace.yaml
+sleep 5
+kubectl apply -f k8s/
 ```
 
 ## Conventions
